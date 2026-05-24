@@ -1,37 +1,57 @@
-from pathlib import Path
+"""
+Special Olympics ETL Pipeline
+Entry point — orchestrates Extract → Transform → Load → MySQL (bonus).
+"""
 
+import argparse
 from helpers.extractor import Extractor
 from helpers.transformers import SilverTransformer, GoldTransformer
 from helpers.loader import Loader
 
 
-def run_pipeline():
-    print("Starting pipeline...")
-    project_root = Path(__file__).resolve().parent
+def run_pipeline(load_mysql: bool = False):
+    print("=" * 50)
+    print("  Special Olympics ETL Pipeline")
+    print("=" * 50)
 
-    raw_path    = project_root / "data" / "raw"
-    bronze_path = project_root / "data" / "bronze"
-    silver_path = project_root / "data" / "silver"
-    gold_path   = project_root / "data" / "gold"
+    loader = Loader(silver_path="data/silver/", gold_path="data/gold/")
 
-    loader = Loader()
+    # --- Extract (Bronze) ---
+    extractor = Extractor(raw_path="data/raw/", bronze_path="data/bronze/")
+    raw = extractor.load_all()
 
-    # Bronze: extract raw files
-    extractor = Extractor(str(raw_path), str(bronze_path))
-    raw_data = extractor.load_all()
+    # --- Transform Silver ---
+    silver = SilverTransformer().transform(raw)
+    loader.save_silver(silver)
 
-    # Silver: clean and standardise
-    silver_data = SilverTransformer().transform(raw_data)
-    print("\n--- Silver: Saving ---")
-    loader.save(silver_data, str(silver_path))
+    # --- Transform Gold ---
+    gold = GoldTransformer().transform(silver)
+    loader.save_all(gold)
 
-    # Gold: build star schema
-    gold_data = GoldTransformer().transform(silver_data)
-    print("\n--- Gold: Saving ---")
-    loader.save(gold_data, str(gold_path))
+    # --- Load MySQL (bonus) ---
+    if load_mysql:
+        from helpers.mysql_loader import MySQLLoader
+        mysql = MySQLLoader(
+            host="localhost",
+            user="root",
+            password="",
+            database="special_olympics",
+            gold_path="data/gold/",
+            export_path="data/",
+        )
+        mysql.load_all(gold)
+        mysql.verify()
+        mysql.export_sql("r0913836_DatabaseExport.sql")
 
     print("\nPipeline complete.")
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    parser = argparse.ArgumentParser(description="Special Olympics ETL Pipeline")
+    parser.add_argument(
+        "--mysql",
+        action="store_true",
+        help="Also load gold tables into MySQL and export .sql dump",
+    )
+    args = parser.parse_args()
+    run_pipeline(load_mysql=args.mysql)
