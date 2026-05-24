@@ -1,5 +1,5 @@
-"""Silver transformer.
-Cleans and standardises raw DataFrames.
+"""silver transformer.
+cleans and standardises raw dataFrames.
 """
 
 import re
