@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from helpers.extractor import Extractor
+from helpers.transformers import SilverTransformer
 
 def run_pipeline():
     print("Starting pipeline..")

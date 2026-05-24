@@ -1,5 +1,5 @@
 """
-Extractor — Bronze layer
+Extractor: Bronze layer
 Loads all raw source files into DataFrames without modification.
 """
 
@@ -20,17 +20,30 @@ class Extractor:
 
     def _load(self, filename: str) -> pd.DataFrame:
         """Load one Excel file and optionally back it up to bronze."""
-        filepath = os.path.join(self.raw_path, filename)
-
-        if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Raw file not found: {filepath}")
-
-        print(f"  [EXTRACT] {filename}")
-        df = pd.read_excel(filepath)
-
+        # Prefer reading from bronze if provided and file exists there.
+        bronze_filepath = None
         if self.bronze_path:
+            bronze_filepath = os.path.join(self.bronze_path, filename)
+
+        raw_filepath = os.path.join(self.raw_path, filename)
+
+        # Determine source: bronze (preferred) or raw
+        if bronze_filepath and os.path.exists(bronze_filepath):
+            source = bronze_filepath
+            source_label = 'BRONZE'
+        elif os.path.exists(raw_filepath):
+            source = raw_filepath
+            source_label = 'RAW'
+        else:
+            raise FileNotFoundError(f"Raw file not found in raw or bronze: {raw_filepath}")
+
+        print(f"  [EXTRACT] ({source_label}) {filename}")
+        df = pd.read_excel(source)
+
+        # If we read from raw and a bronze path is configured, copy there for backup.
+        if source_label == 'RAW' and self.bronze_path:
             os.makedirs(self.bronze_path, exist_ok=True)
-            shutil.copy2(filepath, os.path.join(self.bronze_path, filename))
+            shutil.copy2(raw_filepath, os.path.join(self.bronze_path, filename))
 
         return df
 
